@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    {% load static %}
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chatbot</title>
+    <link rel="icon" href="{% static 'path/to/favicon.ico' %}" type="image/x-icon">
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #ecf0f1; /* Light gray background */
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .container {
+            width: 400px;
+            box-shadow: 0 0 15px rgba(44, 62, 80, 0.2); /* Deep blue shadow */
+            border-radius: 10px;
+            overflow: hidden;
+            background-color: white;
+        }
+
+        #chatbox {
+            border: 1px solid #ccc;
+            padding: 20px;
+            height: 400px;
+            overflow-y: auto;
+            background-color: #f9f9f9;
+        }
+
+        #chatbox div {
+            margin-bottom: 10px;
+        }
+
+        .message {
+            padding: 10px;
+            border-radius: 10px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-width: 80%;
+        }
+
+        .user-message {
+            text-align: right;
+            background-color: #1ABC9C; /* Teal for user */
+            color: white;
+            margin-left: auto;
+            border-radius: 10px 10px 0px 10px;
+        }
+
+        .bot-message {
+            text-align: left;
+            background-color: #dff5f0; /* Lighter teal tone */
+            color: #2C3E50; /* Deep blue text */
+            border-radius: 10px 10px 10px 0px;
+        }
+
+        .input-area {
+            display: flex;
+            background-color: #2C3E50; /* Deep blue */
+            padding: 10px;
+            border-top: 1px solid #ccc;
+        }
+
+        #user-input {
+            flex-grow: 1;
+            padding: 10px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            outline: none;
+        }
+
+        #send-button {
+            background-color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 10px 15px;
+            margin-left: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            color: #1ABC9C; /* Teal */
+            transition: background-color 0.3s;
+        }
+
+        #send-button:hover {
+            background-color: #1ABC9C; /* Teal */
+            color: white;
+        }
+
+        .container h1 {
+            background-color: #2C3E50; /* Deep blue */
+            color: white;
+            padding: 15px;
+            text-align: center;
+            margin: 0;
+            font-size: 24px;
+        }
+
+        .error-message {
+            color: #F39C12; /* Orange for warning/error */
+            font-weight: bold;
+            text-align: center;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Chatbot (Llama 3)</h1>
+        <div id="chatbox">
+            <div class="message bot-message">Hello, Welcome to the RepuTrust!, I am your personal chatbot. How can I help you?</div>
+        </div>
+        <div class="input-area">
+            <textarea id="user-input" rows="2" placeholder="Type your message here..."></textarea>
+            <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+            <button id="send-button">Send</button>
+        </div>
+        <div class="error-message" id="error-message" style="display: none;"></div>
+    </div>
+
+    <script>
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+
+        const csrftoken = getCookie('csrftoken');
+
+        function sendMessage() {
+            const message = document.getElementById('user-input').value;
+            const chatbox = document.getElementById('chatbox');
+            const errorMessage = document.getElementById('error-message');
+
+            if (message.trim() === '') return;
+
+            const userMessage = document.createElement('div');
+            userMessage.classList.add('message', 'user-message');
+            userMessage.textContent = message;
+            chatbox.appendChild(userMessage);
+
+            document.getElementById('user-input').value = '';
+
+            fetch('/chat_response/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': csrftoken,
+                },
+                body: 'message=' + encodeURIComponent(message) + '&csrfmiddlewaretoken=' + encodeURIComponent(csrftoken)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.message) {
+                    const botMessage = document.createElement('div');
+                    botMessage.classList.add('message', 'bot-message');
+                    botMessage.textContent = data.message;
+                    chatbox.appendChild(botMessage);
+                } else {
+                    console.error('Error:', data.error);
+                    errorMessage.textContent = "An error occurred. Please try again.";
+                    errorMessage.style.display = 'block';
+                }
+
+                chatbox.scrollTop = chatbox.scrollHeight;
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                errorMessage.textContent = "An error occurred. Please try again.";
+                errorMessage.style.display = 'block';
+            });
+        }
+
+        document.getElementById('send-button').addEventListener('click', sendMessage);
+
+        document.getElementById('user-input').addEventListener('keydown', function(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+            }
+        });
+    </script>
+</body>
+</html>
